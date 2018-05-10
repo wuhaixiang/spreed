@@ -38,6 +38,15 @@ class ParticipantListContext implements Context, ActorAwareInterface {
 	/**
 	 * @return Locator
 	 */
+	public static function showParticipantDropdownButton() {
+		return Locator::forThe()->css(".oca-spreedme-add-person .select2-choice")->
+				descendantOf(self::participantsTabView())->
+				describedAs("Show participant dropdown button in the sidebar");
+	}
+
+	/**
+	 * @return Locator
+	 */
 	public static function participantsList() {
 		return Locator::forThe()->css(".participantWithList")->
 				descendantOf(self::participantsTabView())->
@@ -63,11 +72,91 @@ class ParticipantListContext implements Context, ActorAwareInterface {
 	}
 
 	/**
+	 * @return Locator
+	 */
+	public static function participantMenuButtonFor($participantName) {
+		return Locator::forThe()->css(".participant-entry-utils-menu-button button")->
+				descendantOf(self::itemInParticipantsListFor($participantName))->
+				describedAs("Menu button for $participantName in the participants list");
+	}
+
+	/**
+	 * @return Locator
+	 */
+	public static function participantMenuFor($participantName) {
+		return Locator::forThe()->css(".menu")->
+				descendantOf(self::itemInParticipantsListFor($participantName))->
+				describedAs("Menu for $participantName in the participants list");
+	}
+
+	/**
+	 * @return Locator
+	 */
+	private static function participantMenuItemFor($participantName, $item) {
+		return Locator::forThe()->xpath("//button[normalize-space() = '$item']")->
+				descendantOf(self::participantMenuFor($participantName))->
+				describedAs("$item item in menu for $participantName in the participants list");
+	}
+
+	/**
+	 * @return Locator
+	 */
+	public static function promoteToModeratorMenuItemFor($participantName) {
+		return self::participantMenuItemFor($participantName, "Promote to moderator");
+	}
+
+	/**
+	 * @return Locator
+	 */
+	public static function demoteFromModeratorMenuItemFor($participantName) {
+		return self::participantMenuItemFor($participantName, "Demote from moderator");
+	}
+
+	/**
+	 * @return Locator
+	 */
+	public static function removeParticipantMenuItemFor($participantName) {
+		return self::participantMenuItemFor($participantName, "Remove participant");
+	}
+
+	/**
 	 * @return array
 	 */
 	public function participantsListItems() {
 		return $this->actor->find(self::participantsList(), 10)
 					->getWrappedElement()->findAll('xpath', '/li');
+	}
+
+	/**
+	 * @When I add :participantName to the participants
+	 */
+	public function iAddToTheParticipants($participantName) {
+		$this->actor->find(self::showParticipantDropdownButton(), 10)->click();
+		$this->actor->find(TalkAppContext::itemInSelect2DropdownFor($participantName), 2)->click();
+	}
+
+	/**
+	 * @When I promote :participantName to moderator
+	 */
+	public function iPromoteToModerator($participantName) {
+		$this->actor->find(self::participantMenuButtonFor($participantName), 10)->click();
+		$this->actor->find(self::promoteToModeratorMenuItemFor($participantName), 2)->click();
+	}
+
+	/**
+	 * @When I demote :participantName from moderator
+	 */
+	public function iDemoteFromModerator($participantName) {
+		$this->actor->find(self::participantMenuButtonFor($participantName), 10)->click();
+		$this->actor->find(self::demoteFromModeratorMenuItemFor($participantName), 2)->click();
+	}
+
+	/**
+	 * @When I remove :participantName from the participants
+	 */
+	public function iRemoveFromTheParticipants($participantName) {
+		$this->actor->find(self::participantMenuButtonFor($participantName), 10)->click();
+		$this->actor->find(self::removeParticipantMenuItemFor($participantName), 2)->click();
 	}
 
 	/**
@@ -96,6 +185,20 @@ class ParticipantListContext implements Context, ActorAwareInterface {
 	public function iSeeThatIsShownInTheListOfParticipantsAsAModerator($participantName) {
 		PHPUnit_Framework_Assert::assertNotNull($this->actor->find(self::itemInParticipantsListFor($participantName), 10));
 		PHPUnit_Framework_Assert::assertNotNull($this->actor->find(self::moderatorIndicatorFor($participantName), 10));
+	}
+
+	/**
+	 * @Then I see that :participantName is shown in the list of participants as a normal participant
+	 */
+	public function iSeeThatIsShownInTheListOfParticipantsAsANormalParticipant($participantName) {
+		PHPUnit_Framework_Assert::assertNotNull($this->actor->find(self::itemInParticipantsListFor($participantName), 10));
+
+		if (!WaitFor::elementToBeEventuallyNotShown(
+				$this->actor,
+				self::moderatorIndicatorFor($participantName),
+				$timeout = 10 * $this->actor->getFindTimeoutMultiplier())) {
+			PHPUnit_Framework_Assert::fail("Participant $participantName is still marked as a moderator after $timeout seconds but it should be a normal participant instead");
+		}
 	}
 
 }
