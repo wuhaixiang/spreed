@@ -170,45 +170,26 @@ class RoomController extends OCSController {
 	 * @throws RoomNotFoundException
 	 */
 	protected function formatRoom(Room $room, Participant $participant = null): array {
-
-		if ($participant instanceof Participant) {
-			$participantType = $participant->getParticipantType();
-			$participantFlags = $participant->getInCallFlags();
-			$favorite = $participant->isFavorite();
-		} else {
-			$participantType = Participant::GUEST;
-			$participantFlags = Participant::FLAG_DISCONNECTED;
-			$favorite = false;
-		}
-		$participantInCall = ($participantFlags & Participant::FLAG_IN_CALL) !== 0;
-
-		$lastActivity = $room->getLastActivity();
-		if ($lastActivity instanceof \DateTimeInterface) {
-			$lastActivity = $lastActivity->getTimestamp();
-		} else {
-			$lastActivity = 0;
-		}
-
 		$roomData = [
 			'id' => $room->getId(),
 			'token' => $room->getToken(),
 			'type' => $room->getType(),
-			'name' => $room->getName(),
-			'displayName' => $room->getName(),
-			'objectType' => $room->getObjectType(),
-			'objectId' => $room->getObjectId(),
-			'participantType' => $participantType,
+			'name' => '',
+			'displayName' => '',
+			'objectType' => '',
+			'objectId' => '',
+			'participantType' => Participant::GUEST,
 			// Deprecated, use participantFlags instead.
-			'participantInCall' => $participantInCall,
-			'participantFlags' => $participantFlags,
-			'count' => $room->getNumberOfParticipants(false, time() - 30),
+			'participantInCall' => false,
+			'participantFlags' => Participant::FLAG_DISCONNECTED,
+			'count' => 0,
 			'hasPassword' => $room->hasPassword(),
-			'hasCall' => $room->getActiveSince() instanceof \DateTimeInterface,
-			'lastActivity' => $lastActivity,
+			'hasCall' => false,
+			'lastActivity' => 0,
 			'unreadMessages' => 0,
 			'unreadMention' => false,
-			'isFavorite' => $favorite,
-			'notificationLevel' => $room->getType() === Room::ONE_TO_ONE_CALL ? Participant::NOTIFY_ALWAYS : Participant::NOTIFY_MENTION,
+			'isFavorite' => false,
+			'notificationLevel' => Participant::NOTIFY_NEVER,
 			'lastPing' => 0,
 			'sessionId' => '0',
 			'participants' => [],
@@ -220,6 +201,30 @@ class RoomController extends OCSController {
 		if (!$participant instanceof Participant) {
 			return $roomData;
 		}
+
+		$lastActivity = $room->getLastActivity();
+		if ($lastActivity instanceof \DateTimeInterface) {
+			$lastActivity = $lastActivity->getTimestamp();
+		} else {
+			$lastActivity = 0;
+		}
+
+
+		$roomData = array_merge($roomData, [
+			'name' => $room->getName(),
+			'displayName' => $room->getName(),
+			'objectType' => $room->getObjectType(),
+			'objectId' => $room->getObjectId(),
+			'participantType' => $participant->getParticipantType(),
+			// Deprecated, use participantFlags instead.
+			'participantInCall' => ($participant->getInCallFlags() & Participant::FLAG_IN_CALL) !== 0,
+			'participantFlags' => $participant->getInCallFlags(),
+			'count' => $room->getNumberOfParticipants(false, time() - 30),
+			'hasCall' => $room->getActiveSince() instanceof \DateTimeInterface,
+			'lastActivity' => $lastActivity,
+			'isFavorite' => $participant->isFavorite(),
+			'notificationLevel' => $room->getType() === Room::ONE_TO_ONE_CALL ? Participant::NOTIFY_ALWAYS : Participant::NOTIFY_MENTION,
+		]);
 
 		if ($participant->getNotificationLevel() !== Participant::NOTIFY_DEFAULT) {
 			$roomData['notificationLevel'] = $participant->getNotificationLevel();
