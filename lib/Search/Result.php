@@ -1,6 +1,9 @@
 <?php
+declare(strict_types=1);
+
 /**
  * @copyright Copyright (c) 2018 Joas Schilling <coding@schilljs.com>
+ * @copyright Copyright (c) 2018 Daniel Calviño Sánchez <danxuliu@gmail.com>
  *
  * @license GNU AGPL version 3 or any later version
  *
@@ -22,26 +25,50 @@
 namespace OCA\Spreed\Search;
 
 use OCP\Comments\IComment;
-use OCP\Files\NotFoundException;
+use OCP\IL10N;
 use OCP\Search\Result as BaseResult;
 
+// TODO rename to ChatMessage or something like that, to later add
+// ChatMessageInFile
 class Result extends BaseResult {
 
-	public $type = 'chat';
-	public $comment;
-	public $authorId;
-	public $authorName;
+	/** @var IL10N */
+	private $l;
+
+	/** @var string */
+	public $type = 'chat-message';
+
+	/** @var string */
+	public $token;
+
+	/** @var string */
+	public $actorType;
+
+	/** @var string */
+	public $actorId;
+
+	/** @var string */
+	public $actorDisplayName;
+
+	/** @var int */
+	public $timestamp;
+
+	/** @var string */
+	public $relevantMessagePart;
 
 	/**
+	 * @param IL10N $l
 	 * @param string $search
 	 * @param IComment $comment
-	 * @param string $authorName
-	 * @param string $path
-	 * @throws NotFoundException
+	 * @param string $token
+	 * @param string $actorDisplayName
+	 * @throws \InvalidArgumentException
 	 */
-	public function __construct(string $search,
+	public function __construct(IL10N $l,
+								string $search,
 								IComment $comment,
-								string $authorName) {
+								string $token,
+								string $actorDisplayName) {
 		parent::__construct(
 			(int) $comment->getId(),
 			$comment->getMessage()
@@ -51,21 +78,29 @@ class Result extends BaseResult {
 		// the client? In any case, needs to open the chat exactly in that
 		// message.
 
-		$this->comment = $this->getRelevantMessagePart($comment->getMessage(), $search);
-		$this->authorId = $comment->getActorId();
-		$this->authorName = $authorName;
+		$this->l = $l;
+
+		$this->token = $token;
+
+		$this->actorType = $comment->getActorType();
+		$this->actorId = $comment->getActorId();
+		$this->actorDisplayName = $actorDisplayName;
+
+		$this->timestamp = $comment->getCreationDateTime()->getTimestamp();
+
+		$this->relevantMessagePart = $this->getRelevantMessagePart($comment->getMessage(), $search);
 	}
 
 	/**
 	 * @param string $message
 	 * @param string $search
 	 * @return string
-	 * @throws NotFoundException
+	 * @throws \InvalidArgumentException
 	 */
 	protected function getRelevantMessagePart(string $message, string $search): string {
 		$start = stripos($message, $search);
 		if ($start === false) {
-			throw new NotFoundException('Chat message section not found');
+			throw new InvalidArgumentException('Chat message section not found');
 		}
 
 		$end = $start + strlen($search);
@@ -75,7 +110,7 @@ class Result extends BaseResult {
 			$prefix = '';
 		} else {
 			$start -= 25;
-			$prefix = '…';
+			$prefix = $this->l->t('spreed', '…');
 		}
 
 		if ((strlen($message) - $end) <= 25) {
@@ -83,7 +118,7 @@ class Result extends BaseResult {
 			$suffix = '';
 		} else {
 			$end += 25;
-			$suffix = '…';
+			$suffix = $this->l->t('spreed', '…');
 		}
 
 		return $prefix . substr($message, $start, $end - $start) . $suffix;

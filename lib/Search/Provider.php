@@ -1,6 +1,9 @@
 <?php
+declare(strict_types=1);
+
 /**
  * @copyright Copyright (c) 2018 Joas Schilling <coding@schilljs.com>
+ * @copyright Copyright (c) 2018 Daniel Calviño Sánchez <danxuliu@gmail.com>
  *
  * @license GNU AGPL version 3 or any later version
  *
@@ -24,7 +27,6 @@ namespace OCA\Spreed\Search;
 use OCP\Comments\IComment;
 use OCP\Files\Folder;
 use OCP\Files\Node;
-use OCP\Files\NotFoundException;
 use OCP\IUser;
 
 class Provider extends \OCP\Search\Provider {
@@ -50,6 +52,13 @@ class Provider extends \OCP\Search\Provider {
 			return [];
 		}
 
+		$l = \OC::$server->getL10N('spreed');
+
+// 		$guestNames = !empty($guestSessions) ? $this->guestManager->getNamesBySessionHashes($guestSessions) : [];
+		$userManager = \OC::$server->getUserManager();
+
+		$manager = \OC::$server->resolve('OCA\Spreed\Manager');
+
 		$result = [];
 		$numComments = 50;
 		$offset = 0;
@@ -60,18 +69,32 @@ class Provider extends \OCP\Search\Provider {
 
 			foreach ($comments as $comment) {
 				// TODO Handle guests, prevent access to rooms not joined to
-				if ($comment->getActorType() !== 'users') {
+				// TODO Ignore system messages
+				if ($comment->getActorType() !== 'users' && $comment->getActorType() !== 'guests') {
 					continue;
 				}
 
-				$displayName = $cm->resolveDisplayName('user', $comment->getActorId());
+				$room = $manager->getRoomById($comment->getObjectId());
+
+				$actorDisplayName = '';
+				if ($comment->getActorType() === 'users') {
+					$user = $userManager->get($comment->getActorId());
+					$actorDisplayName = $user instanceof IUser ? $user->getDisplayName() : '';
+// 				} else if ($comment->getActorType() === 'guests' && isset($guestNames[$comment->getActorId()])) {
+// 					$actorDisplayName = $guestNames[$comment->getActorId()];
+				}
+
+// 				$actorDisplayName = $cm->resolveDisplayName($comment->getActorType(), $comment->getActorId());
 
 				try {
-					$result[] = new Result($query,
+					$result[] = new Result(
+						$l,
+						$query,
 						$comment,
-						$displayName
+						$room->getToken(),
+						$actorDisplayName
 					);
-				} catch (NotFoundException $e) {
+				} catch (\InvalidArgumentException $e) {
 					continue;
 				}
 			}
@@ -84,6 +107,8 @@ class Provider extends \OCP\Search\Provider {
 			$offset += $numComments;
 			$numComments = 50 - \count($result);
 		}
+
+		// TODO set guest names here
 
 		return $result;
 	}
