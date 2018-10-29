@@ -94,12 +94,30 @@ class SearchContext implements Context {
 		$searchResults = json_decode($this->response->getBody(), $asAssociativeArray = true);
 		$searchResult = $searchResults[$number];
 
-		foreach ($body->getRowsHash() as $expectedField => $expectedValue) {
-			if (!array_key_exists($expectedField, $searchResult)) {
-				PHPUnit_Framework_Assert::fail("$expectedField was not found in response");
-			}
+		$defaultExpectedFields = [
+			'type' => 'chat-message',
+			'id' => 'A_NUMBER',
+			'timestamp' => 'A_NUMBER'
+		];
+		$expectedFields = array_merge($defaultExpectedFields, $body->getRowsHash());
 
-			PHPUnit_Framework_Assert::assertEquals($expectedValue, $searchResult[$expectedField], "Field '$expectedField' does not match ({$searchResult[$expectedField]})");
+		if (array_key_exists('room', $expectedFields)) {
+			$expectedFields['token'] = FeatureContext::getTokenForIdentifier($expectedFields['room']);
+			unset($expectedFields['room']);
+		}
+
+		if (!array_key_exists('actorDisplayName', $expectedFields) &&
+				array_key_exists('actorId', $expectedFields)) {
+			$expectedFields['actorDisplayName'] = $expectedFields['actorId'] . '-displayname';
+		}
+
+		if (!array_key_exists('relevantMessagePart', $expectedFields) &&
+				array_key_exists('name', $expectedFields)) {
+			$expectedFields['relevantMessagePart'] = $expectedFields['name'];
+		}
+
+		foreach ($expectedFields as $expectedField => $expectedValue) {
+			$this->assertFieldIsInReturnedSearchResult($expectedField, $expectedValue, $searchResult);
 		}
 	}
 
@@ -172,6 +190,27 @@ class SearchContext implements Context {
 		$requestToken = $this->extractRequestTokenFromResponse($response);
 
 		return [$requestToken, $cookieJar];
+	}
+
+	/**
+	 * @param string $field
+	 * @param string $contentExpected
+	 * @param array $returnedSearchResult
+	 */
+	private function assertFieldIsInReturnedSearchResult(string $field, string $contentExpected, array $returnedSearchResult){
+		if (!array_key_exists($field, $returnedSearchResult)) {
+			PHPUnit_Framework_Assert::fail("$field was not found in response");
+		}
+
+		if ($contentExpected === 'A_NUMBER') {
+			PHPUnit_Framework_Assert::assertTrue(is_numeric((string)$returnedSearchResult[$field]), "Field '$field' is not a number: " . $returnedSearchResult[$field]);
+		} else if ($contentExpected === 'A_TOKEN') {
+			// A token is composed by 15 characters from
+			// ISecureRandom::CHAR_HUMAN_READABLE.
+			PHPUnit_Framework_Assert::assertRegExp('/^[abcdefgijkmnopqrstwxyzABCDEFGHJKLMNPQRSTWXYZ23456789]{15}$/', (string)$returnedSearchResult[$field], "Field '$field' is not a token");
+		} else {
+			PHPUnit_Framework_Assert::assertEquals($contentExpected, (string)$returnedSearchResult[$field], "Field '$field' does not match");
+		}
 	}
 
 }
