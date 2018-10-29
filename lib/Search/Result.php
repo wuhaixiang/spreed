@@ -110,7 +110,7 @@ class Result extends BaseResult {
 			$prefix = '';
 		} else {
 			$start -= 25;
-			$prefix = $this->l->t('spreed', '…');
+			$prefix = $this->l->t('…');
 		}
 
 		if ((strlen($message) - $end) <= 25) {
@@ -118,7 +118,7 @@ class Result extends BaseResult {
 			$suffix = '';
 		} else {
 			$end += 25;
-			$suffix = $this->l->t('spreed', '…');
+			$suffix = $this->l->t('…');
 		}
 
 		return $prefix . substr($message, $start, $end - $start) . $suffix;
